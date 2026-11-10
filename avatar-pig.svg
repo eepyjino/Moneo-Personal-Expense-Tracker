@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="avatar-title">
+  <title id="avatar-title">Piggy bank avatar</title>
+  <circle cx="128" cy="128" r="128" fill="#D9F5E8"/>
+  <path d="M62 104C48 64 80 46 106 72L62 104Zm132 0c14-40-18-58-44-32l44 32Z" fill="#F47C98"/>
+  <path d="M72 96C66 76 82 66 94 78L72 96Zm112 0c6-20-10-30-22-18l22 18Z" fill="#F9A8B8"/>
+  <ellipse cx="128" cy="146" rx="78" ry="72" fill="#F9A8B8"/>
+  <circle cx="128" cy="44" r="18" fill="#FFC83D"/>
+  <circle cx="128" cy="44" r="12" fill="none" stroke="#E0A100" stroke-width="3"/>
+  <rect x="124" y="36" width="8" height="16" rx="3" fill="#E0A100"/>
+  <circle cx="78" cy="160" r="12" fill="#F47C98" opacity=".45"/>
+  <circle cx="178" cy="160" r="12" fill="#F47C98" opacity=".45"/>
+  <circle cx="98" cy="128" r="9" fill="#2B2B3A"/>
+  <circle cx="158" cy="128" r="9" fill="#2B2B3A"/>
+  <circle cx="101" cy="125" r="3" fill="#FFFFFF"/>
+  <circle cx="161" cy="125" r="3" fill="#FFFFFF"/>
+  <ellipse cx="128" cy="166" rx="34" ry="25" fill="#F47C98"/>
+  <ellipse cx="116" cy="166" rx="5" ry="8" fill="#C94D6E"/>
+  <ellipse cx="140" cy="166" rx="5" ry="8" fill="#C94D6E"/>
+  <path d="M112 196q16 12 32 0" fill="none" stroke="#C94D6E" stroke-width="4" stroke-linecap="round"/>
+</svg>

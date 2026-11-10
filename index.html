@@ -13,9 +13,7 @@
   <div class="app-shell">
     <header class="topbar">
       <a class="brand" href="#overview" aria-label="Moneo home">
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M4 7.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a3 3 0 0 1-3-3v-10a3 3 0 0 1 3-3h11M3 8h14M16 13h4"/><circle cx="16" cy="13" r=".75"/></svg>
-        </span>
+        <img class="brand-avatar" src="/images/avatar-pig.svg" alt="">
         <span>Moneo</span>
       </a>
 
@@ -34,16 +32,17 @@
         </button>
       </nav>
 
-      <div class="topbar-status"><span class="status-dot"></span><span>Just for you</span></div>
+      <div class="topbar-status"><span class="status-dot"></span><span>Your money, your pace</span></div>
     </header>
 
     <main class="main-content" id="mainContent">
       <section class="page-heading" aria-labelledby="pageTitle">
-        <div>
+        <div class="hero-copy">
           <p class="eyebrow">YOUR PERSONAL FINANCE</p>
           <h1 id="pageTitle">Money, made clearer.</h1>
           <p class="page-subtitle">A little more clarity, one day at a time.</p>
         </div>
+        <img class="hero-mascot" src="/images/avatar-pig.svg" alt="" aria-hidden="true">
         <div class="month-picker" aria-label="Choose month">
           <button class="icon-button month-arrow" id="previousMonth" type="button" aria-label="Previous month">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
@@ -75,6 +74,48 @@
             <span class="summary-footnote" id="biggestCategoryFootnote">Your top spend this month</span>
           </article>
         </div>
+
+        <section class="surface-panel monthly-budget-panel" aria-labelledby="monthlyBudgetTitle">
+          <div class="budget-panel-heading">
+            <div class="budget-heading-copy"><p class="eyebrow">MONTHLY PLAN</p><h2 id="monthlyBudgetTitle">Expense budget</h2><p class="section-description" id="budgetMonthLabel"></p></div>
+            <form class="monthly-budget-form" id="monthlyBudgetForm" novalidate>
+              <label class="budget-input-label" for="monthlyBudgetAmount"><span>Monthly target</span><span class="budget-amount-input"><span aria-hidden="true">₱</span><input id="monthlyBudgetAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Set budget" aria-describedby="monthlyBudgetError"></span></label>
+              <label class="budget-input-label savings-target-input" for="monthlySavingsTarget"><span>How much do you want to save this month?</span><span class="budget-amount-input"><span aria-hidden="true">₱</span><input id="monthlySavingsTarget" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Set savings goal" aria-describedby="monthlyBudgetError"></span></label>
+              <button class="button button-secondary budget-save-button" type="submit">Save budget</button>
+            </form>
+          </div>
+          <small class="field-error budget-error" id="monthlyBudgetError" aria-live="polite"></small>
+          <div class="budget-metrics">
+            <div class="budget-metric"><span>Spent to date</span><strong id="budgetSpent">₱0.00</strong><small id="budgetTransactionCount">0 transactions</small></div>
+            <div class="budget-metric budget-projection"><span>Estimated month-end</span><strong id="budgetProjection">₱0.00</strong><small id="budgetPaceLabel">Based on current spending pace</small></div>
+            <div class="budget-metric budget-target-metric"><span>Monthly expense budget</span><strong id="budgetTargetDisplay">Not set</strong><small id="budgetTargetHint">Set a target for this month</small></div>
+            <div class="budget-metric budget-savings-goal-metric"><span>Monthly savings goal</span><strong id="budgetSavingsTargetDisplay">Not set</strong><small>Amount to keep this month</small></div>
+            <div class="budget-metric budget-daily-target-metric"><span>Daily spending target</span><strong id="dailySpendTargetDisplay">Not set</strong><small id="dailySpendTargetHint">Budget minus savings goal, per day</small></div>
+          </div>
+          <div class="budget-progress-copy"><span id="budgetComparison">Choose a target budget to compare your estimate.</span><strong id="budgetSpentPercent"></strong></div>
+          <div class="budget-progress-track" id="budgetProgressBar" role="progressbar" aria-label="Monthly spending against budget" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="budgetProgressFill"></span></div>
+        </section>
+
+        <section class="surface-panel savings-panel" aria-labelledby="savingsTitle">
+          <div class="panel-heading savings-heading">
+            <div><p class="eyebrow">SMALL WINS ADD UP</p><h2 id="savingsTitle">Savings streak</h2><p class="section-description">Only recorded days at 80% or more of the daily savings goal are colored.</p></div>
+            <button class="button button-secondary daily-checkin-button" id="openDailySpendButton" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8M8 3h8v3H8zM6 5H4v16h16V5h-2M8 11h8M8 15h8"/></svg><span>Daily spend check-in</span></button>
+          </div>
+          <div class="savings-summary">
+            <div class="streak-count"><span class="streak-flame" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22a7 7 0 0 0 7-7c0-3-2-5-4-7 0 3-2 4-2 4 0-5-3-9-5-11 0 5-1 7-3 10a8 8 0 0 0 7 11Z"/></svg></span><strong id="currentStreak">0</strong><span id="streakUnit">day streak</span></div>
+            <div class="goal-progress-copy"><span id="goalProgressLabel">Today's spending vs. target</span><strong id="goalProgressText">Set this month’s budget first</strong></div>
+            <div class="goal-progress-track" id="goalProgressBar" role="progressbar" aria-label="Today's expenses against the savings-plan spending target" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="goalProgressFill"></span></div>
+            <small class="daily-spend-status" id="dailySpendStatus"></small>
+          </div>
+          <div class="contribution-scroll" aria-label="Estimated savings from daily expenses over the last 53 weeks">
+            <div class="contribution-months" id="contributionMonths" aria-hidden="true"></div>
+            <div class="contribution-body">
+              <div class="contribution-weekdays" aria-hidden="true"><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span></div>
+              <div class="contribution-grid" id="contributionGrid" role="img" aria-label="Estimated daily savings based on monthly budgets and expenses"></div>
+            </div>
+          </div>
+          <div class="contribution-footer"><span id="contributionSummary">No savings recorded yet</span><span class="contribution-legend" aria-label="Below goal to goal met or exceeded"><span>Below</span><i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span>Met</span></span></div>
+        </section>
 
         <div class="insight-grid">
           <section class="surface-panel category-panel" aria-labelledby="categoryChartTitle">
@@ -130,7 +171,7 @@
       <section class="tab-panel" id="categoriesPanel" role="tabpanel" aria-labelledby="categoriesTab" data-panel="categories" hidden>
         <section class="categories-section" aria-labelledby="categoriesTitle">
           <div class="panel-heading categories-heading">
-            <div><p class="eyebrow">MAKE IT YOURS</p><h2 id="categoriesTitle">Categories</h2><p class="section-description">Give every expense a place.</p></div>
+            <div><p class="eyebrow">MAKE IT YOURS</p><h2 id="categoriesTitle">Categories</h2><p class="section-description">Use the built-in presets or add your own.</p></div>
             <button class="button button-primary add-category-button" type="button" id="addCategoryButton"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add category</span></button>
           </div>
           <div class="category-card-grid" id="categoryCards"></div>
@@ -184,6 +225,24 @@
       </form>
     </section>
   </div>
+
+  <div class="modal-backdrop" id="dailySpendModal" hidden>
+        <section class="modal-card savings-modal-card" role="dialog" aria-modal="true" aria-labelledby="dailySpendModalTitle" tabindex="-1">
+          <div class="modal-heading">
+            <div><p class="eyebrow">CONFIRM YOUR DAILY TOTAL</p><h2 id="dailySpendModalTitle">Daily spending</h2></div>
+            <button class="icon-button modal-close" type="button" data-close-modal aria-label="Close dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+          </div>
+          <form id="dailySpendForm" novalidate>
+            <label class="field" for="dailySpendAmount">How much did you spend?</label>
+            <div class="amount-input-wrap"><span aria-hidden="true">₱</span><input id="dailySpendAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" aria-describedby="dailySpendAmountError" required></div>
+            <small class="field-error" id="dailySpendAmountError" aria-live="polite"></small>
+            <label class="field" for="dailySpendDate">Date</label>
+            <input class="form-control" id="dailySpendDate" type="date" required>
+            <small class="field-hint">For the streak, this total replaces individual transactions on that date.</small>
+            <div class="modal-actions"><button class="button button-secondary" type="button" data-close-modal>Cancel</button><button class="button button-primary" type="submit">Save daily total</button></div>
+          </form>
+        </section>
+      </div>
 
   <div class="modal-backdrop" id="confirmModal" hidden>
     <section class="modal-card confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage" tabindex="-1">

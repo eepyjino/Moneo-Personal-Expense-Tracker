@@ -30,6 +30,9 @@ router.post('/', (req, res) => {
 // Update
 router.put('/:id', (req, res) => {
   try {
+    const category = db.prepare('SELECT is_builtin FROM categories WHERE id = ?').get(req.params.id);
+    if (!category) return res.status(404).json({ error: 'Category not found' });
+    if (category.is_builtin) return res.status(403).json({ error: 'Built-in categories cannot be edited' });
     const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
     if (!name) return res.status(400).json({ error: 'Category name is required' });
     db.prepare('UPDATE categories SET name = ?, color = ? WHERE id = ?')
@@ -43,6 +46,9 @@ router.put('/:id', (req, res) => {
 // Delete
 router.delete('/:id', (req, res) => {
   try {
+    const category = db.prepare('SELECT is_builtin FROM categories WHERE id = ?').get(req.params.id);
+    if (!category) return res.status(404).json({ error: 'Category not found' });
+    if (category.is_builtin) return res.status(403).json({ error: 'Built-in categories cannot be deleted' });
     db.prepare('DELETE FROM categories WHERE id = ?').run(req.params.id);
     res.json({ success: true });
   } catch (err) {

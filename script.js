@@ -1,3 +1,4 @@
+// Shared app state
 const currency = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
 const categoryColors = ['#1FB67A', '#F25C5C', '#5686E8', '#F2A65A', '#8B79C8', '#E3768C', '#45B6C5', '#827A73'];
 const state = {
@@ -9,10 +10,13 @@ const state = {
   editingExpense: null,
   editingCategory: null,
   confirmAction: null,
+  dailySpendAmountEdited: false,
   categoryChart: null,
   trendChart: null,
   toastTimer: null
 };
+
+// Shared helpers
 
 // Find a page element by its id.
 function byId(id) {
@@ -75,14 +79,14 @@ function formatGroupDate(dateKey) {
 // Load categories, expenses, and monthly summary data from the server.
 async function loadData() {
   try {
-    const results = await Promise.all([
+    const [categories, expenses, stats] = await Promise.all([
       api('/api/categories'),
       api('/api/expenses'),
       api(`/api/stats?month=${encodeURIComponent(state.month)}`)
     ]);
-    state.categories = results[0];
-    state.expenses = results[1];
-    state.stats = results[2];
+    state.categories = categories;
+    state.expenses = expenses;
+    state.stats = stats;
     byId('appError').hidden = true;
     renderApp();
   } catch (error) {
@@ -91,12 +95,15 @@ async function loadData() {
   }
 }
 
+// Dashboard data and rendering
+
 // Refresh every visible part of the app from the latest data.
 function renderApp() {
   byId('monthLabel').textContent = formatMonth(state.month);
   byId('transactionMonthDescription').textContent = `Showing expenses for ${formatMonth(state.month)}`;
   renderCategorySelects();
   renderOverview();
+  renderSavings();
   renderTransactions();
   renderCategories();
 }
@@ -125,12 +132,85 @@ function renderOverview() {
   byId('monthTotal').textContent = currency.format(total);
   byId('donutTotal').textContent = currency.format(total);
   byId('transactionCount').textContent = String(monthExpenses.length);
-  byId('transactionFootnote').textContent = monthExpenses.length === 1 ? 'Recorded this month' : 'Recorded this month';
+  byId('transactionFootnote').textContent = 'Recorded this month';
   byId('biggestCategory').textContent = biggest ? biggest.category : 'No activity';
   byId('biggestCategoryFootnote').textContent = biggest ? currency.format(Number(biggest.total)) + ' this month' : 'Your top spend this month';
+  renderMonthlyBudget(monthExpenses);
   renderCategoryChart(stats.byCategory || [], total);
   renderTrendChart(stats.monthlyTotals || []);
   renderRecent(stats.recent || []);
+}
+
+// Compare transaction spending with this month's target and project its final total.
+function renderMonthlyBudget(monthExpenses) {
+  const today = getToday();
+  const currentMonth = today.slice(0, 7);
+  const [year, monthNumber] = state.month.split('-').map(Number);
+  const daysInMonth = new Date(year, monthNumber, 0).getDate();
+  const isFutureMonth = state.month > currentMonth;
+  const elapsedDays = isFutureMonth ? 0 : state.month === currentMonth ? Number(today.slice(8, 10)) : daysInMonth;
+  const transactionsToDate = monthExpenses.filter(expense => expense.date <= today);
+  const spent = transactionsToDate.reduce((total, expense) => total + Number(expense.amount), 0);
+  const projection = elapsedDays ? spent / elapsedDays * daysInMonth : 0;
+  const budget = state.stats.monthlyBudget == null ? null : Number(state.stats.monthlyBudget);
+  const savingsTarget = Number(state.stats.monthlySavingsTarget || 0);
+  const dailySpendTarget = budget == null ? null : Math.max(0, budget - savingsTarget) / daysInMonth;
+
+  byId('budgetMonthLabel').textContent = `Set a spending budget and savings goal for ${formatMonth(state.month)}.`;
+  byId('monthlyBudgetAmount').value = budget == null ? '' : String(budget);
+  byId('monthlySavingsTarget').value = budget == null ? '' : String(savingsTarget);
+  byId('budgetSpent').textContent = currency.format(spent);
+  byId('budgetTransactionCount').textContent = `${transactionsToDate.length} ${transactionsToDate.length === 1 ? 'transaction' : 'transactions'}`;
+  byId('budgetProjection').textContent = currency.format(projection);
+  byId('budgetPaceLabel').textContent = isFutureMonth ? 'This month has not started yet' : state.month === currentMonth ? 'Based on current spending pace' : 'Final total for this month';
+  byId('budgetTargetDisplay').textContent = budget == null ? 'Not set' : currency.format(budget);
+  byId('budgetTargetHint').textContent = budget == null ? 'Set a target for this month' : `For ${formatMonth(state.month)}`;
+  byId('budgetSavingsTargetDisplay').textContent = savingsTarget > 0 ? currency.format(savingsTarget) : 'Not set';
+  byId('dailySpendTargetDisplay').textContent = dailySpendTarget == null ? 'Not set' : currency.format(dailySpendTarget);
+  byId('dailySpendTargetHint').textContent = dailySpendTarget == null
+    ? 'Set a monthly budget first'
+    : `${currency.format(dailySpendTarget)} maximum per day to meet your savings goal`;
+
+  const percent = budget ? spent / budget * 100 : 0;
+  const cappedPercent = Math.min(100, Math.round(percent));
+  const progressBar = byId('budgetProgressBar');
+  progressBar.setAttribute('aria-valuenow', String(cappedPercent));
+  progressBar.classList.toggle('is-over-budget', Boolean(budget && spent > budget));
+  byId('budgetProgressFill').style.width = `${cappedPercent}%`;
+  byId('budgetSpentPercent').textContent = budget ? `${Math.round(percent)}% used` : '';
+
+  let comparison = 'Set a monthly budget to calculate your daily spending target.';
+  const estimatedSavings = budget == null ? 0 : Math.max(0, budget - projection);
+  if (budget != null && isFutureMonth) comparison = 'Your monthly plan is ready for this month.';
+  else if (budget != null && projection > budget) comparison = `At this pace, expenses may exceed your budget by ${currency.format(projection - budget)}.`;
+  else if (budget != null && savingsTarget <= 0) comparison = 'Add a monthly savings goal to see whether your spending pace will meet it.';
+  else if (budget != null && estimatedSavings < savingsTarget) comparison = `At this pace, estimated savings of ${currency.format(estimatedSavings)} may fall short by ${currency.format(savingsTarget - estimatedSavings)}.`;
+  else if (budget != null && estimatedSavings > savingsTarget) comparison = `At this pace, estimated savings may exceed your goal by ${currency.format(estimatedSavings - savingsTarget)}.`;
+  else if (budget != null) comparison = 'Your current spending pace is right on your savings goal.';
+  byId('budgetComparison').textContent = comparison;
+}
+
+// Save the spending target for the selected calendar month.
+async function saveMonthlyBudget(event) {
+  event.preventDefault();
+  byId('monthlyBudgetError').textContent = '';
+  const amount = Number(byId('monthlyBudgetAmount').value);
+  const savingsTarget = Number(byId('monthlySavingsTarget').value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    byId('monthlyBudgetError').textContent = 'Enter a monthly target greater than zero.';
+    return;
+  }
+  if (!Number.isFinite(savingsTarget) || savingsTarget < 0 || savingsTarget > amount) {
+    byId('monthlyBudgetError').textContent = 'Savings goal must be between zero and the monthly budget.';
+    return;
+  }
+  try {
+    await api('/api/stats/budget', 'PUT', { month: state.month, amount, savingsTarget });
+    showToast(`Budget saved for ${formatMonth(state.month)}`);
+    await loadData();
+  } catch (error) {
+    byId('monthlyBudgetError').textContent = error.message;
+  }
 }
 
 // Draw the category chart and its readable text legend.
@@ -241,6 +321,8 @@ function categoryColor(categoryId) {
   return category ? category.color : categoryColors[0];
 }
 
+// Transaction list
+
 // Filter and group expenses by date for the selected month.
 function renderTransactions() {
   const search = byId('transactionSearch').value.trim().toLowerCase();
@@ -269,6 +351,8 @@ function renderTransactions() {
     </section>`).join('');
 }
 
+// Category list
+
 // Show category cards with their color and management actions.
 function renderCategories() {
   const grid = byId('categoryCards');
@@ -278,10 +362,7 @@ function renderCategories() {
   }
   grid.innerHTML = state.categories.map(category => {
     const count = state.expenses.filter(expense => Number(expense.category_id) === Number(category.id)).length;
-    return `<article class="category-card" style="--category-color:${safeColor(category.color)}">
-      <div class="category-card-main"><span class="category-avatar" aria-hidden="true">${escapeHtml(category.name.slice(0, 1).toUpperCase())}</span>
-        <div class="transaction-copy"><div class="category-card-name">${escapeHtml(category.name)}</div><div class="category-card-count">${count} ${count === 1 ? 'expense' : 'expenses'}</div></div>
-      </div>
+    const actions = category.is_builtin ? '<span class="category-fixed-badge">Preset</span>' : `
       <div class="category-card-actions">
         <button class="action-button" type="button" data-category-action="edit" data-id="${category.id}" aria-label="Edit ${escapeHtml(category.name)}" title="Edit">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5 5 5M4 20l4.5-1 10.2-10.2a2.1 2.1 0 0 0-3-3L5.5 16z"/></svg>
@@ -289,10 +370,192 @@ function renderCategories() {
         <button class="action-button is-danger" type="button" data-category-action="delete" data-id="${category.id}" aria-label="Delete ${escapeHtml(category.name)}" title="Delete">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-.8 13H6.8L6 7m4 4v5m4-5v5"/></svg>
         </button>
+      </div>`;
+    return `<article class="category-card" style="--category-color:${safeColor(category.color)}">
+      <div class="category-card-main"><span class="category-avatar" aria-hidden="true">${escapeHtml(category.name.slice(0, 1).toUpperCase())}</span>
+        <div class="transaction-copy"><div class="category-card-name">${escapeHtml(category.name)}</div><div class="category-card-count">${count} ${count === 1 ? 'expense' : 'expenses'}</div></div>
       </div>
+      ${actions}
     </article>`;
   }).join('');
 }
+
+// Automatic savings streak
+
+// Convert a YYYY-MM-DD string into a local date.
+function parseDate(dateKey) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+// Convert a local date into the YYYY-MM-DD format used by the API.
+function toDateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+// Return the Sunday that starts the date's week.
+function weekStart(date) {
+  const start = new Date(date);
+  start.setDate(start.getDate() - start.getDay());
+  return start;
+}
+
+// Estimate savings for one date using that month's budget and actual expenses.
+function estimateSavings(dateKey, expensesByDate, manualSpendingByDate, budgetsByMonth) {
+  const budget = budgetsByMonth.get(dateKey.slice(0, 7));
+  const [year, month] = dateKey.split('-').map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const monthlyBudget = budget ? budget.amount : 0;
+  const monthlySavingsTarget = budget ? budget.savingsTarget : 0;
+  const dailyAllowance = monthlyBudget / daysInMonth;
+  const dailySavingsTarget = monthlySavingsTarget / daysInMonth;
+  const spendingTarget = Math.max(0, dailyAllowance - dailySavingsTarget);
+  const isManualTotal = manualSpendingByDate.has(dateKey);
+  const hasRecord = isManualTotal || expensesByDate.has(dateKey);
+  const spent = isManualTotal ? manualSpendingByDate.get(dateKey) : expensesByDate.get(dateKey) || 0;
+  return {
+    allowance: dailyAllowance,
+    dailySavingsTarget,
+    spendingTarget,
+    spent,
+    hasRecord,
+    isManualTotal,
+    amount: Math.max(0, dailyAllowance - spent),
+    qualifies: monthlyBudget > 0 && hasRecord && spent <= spendingTarget
+  };
+}
+
+// Render the automatic under-budget streak and its 53-week contribution grid.
+function renderSavings() {
+  const budgetsByMonth = new Map((state.stats.monthlyBudgets || []).map(budget => [budget.month, {
+    amount: Number(budget.amount),
+    savingsTarget: Number(budget.savingsTarget || 0)
+  }]));
+  const expensesByDate = new Map();
+  const manualSpendingByDate = new Map((state.stats.dailySpending || []).map(entry => [entry.date, Number(entry.amount)]));
+  state.expenses.forEach(expense => {
+    expensesByDate.set(expense.date, (expensesByDate.get(expense.date) || 0) + Number(expense.amount));
+  });
+
+  const todayKey = getToday();
+  const todayEstimate = estimateSavings(todayKey, expensesByDate, manualSpendingByDate, budgetsByMonth);
+  const progress = todayEstimate.spendingTarget
+    ? Math.min(100, Math.round(todayEstimate.spent / todayEstimate.spendingTarget * 100))
+    : 0;
+  byId('goalProgressLabel').textContent = "Today's spending vs. target";
+  byId('goalProgressText').textContent = todayEstimate.allowance
+    ? todayEstimate.hasRecord
+      ? `${currency.format(todayEstimate.spent)} of ${currency.format(todayEstimate.spendingTarget)} spent`
+      : 'Check in to confirm today’s spending'
+    : 'Set this month’s budget first';
+  byId('goalProgressFill').style.width = `${progress}%`;
+  byId('goalProgressBar').setAttribute('aria-valuenow', String(progress));
+  byId('goalProgressBar').classList.toggle('is-over-budget', todayEstimate.spent > todayEstimate.spendingTarget);
+  byId('dailySpendStatus').textContent = todayEstimate.isManualTotal
+    ? 'Manual total used for today’s streak check'
+    : todayEstimate.hasRecord ? 'Calculated from today’s transactions' : 'No spending recorded for today';
+
+  const qualifies = dateKey => dateKey <= todayKey && estimateSavings(dateKey, expensesByDate, manualSpendingByDate, budgetsByMonth).qualifies;
+  let cursor = parseDate(todayKey);
+  if (!qualifies(todayKey)) cursor.setDate(cursor.getDate() - 1);
+  let streak = 0;
+  while (streak < 3660 && qualifies(toDateKey(cursor))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  byId('currentStreak').textContent = String(streak);
+  byId('streakUnit').textContent = 'day streak';
+
+  const gridStart = weekStart(parseDate(todayKey));
+  gridStart.setDate(gridStart.getDate() - 52 * 7);
+  const monthLabels = [];
+  const seenMonths = new Set();
+  const visibleDates = [];
+  let underBudgetDays = 0;
+  for (let index = 0; index < 53 * 7; index += 1) {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    const key = toDateKey(date);
+    const estimate = estimateSavings(key, expensesByDate, manualSpendingByDate, budgetsByMonth);
+    const goalProgress = estimate.dailySavingsTarget ? estimate.amount / estimate.dailySavingsTarget : 0;
+    let level = 0;
+    if (estimate.hasRecord && goalProgress >= 0.8) {
+      level = goalProgress >= 1.25 ? 4 : goalProgress >= 1 ? 3 : goalProgress >= 0.9 ? 2 : 1;
+    }
+    const goalMet = key <= todayKey && estimate.qualifies;
+    if (goalMet) underBudgetDays += 1;
+    const detail = !estimate.allowance
+      ? 'Set a monthly budget to estimate savings'
+      : !estimate.hasRecord
+        ? 'No spending recorded; check in to confirm this day'
+        : `${currency.format(estimate.amount)} estimated saved; spent ${currency.format(estimate.spent)} of ${currency.format(estimate.spendingTarget)} daily target`;
+    const label = `${formatDate(key, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}: ${detail}${goalMet ? ', under budget' : ''}`;
+    visibleDates.push(`<span class="contribution-day level-${level}${goalMet ? ' goal-met' : ''}${key > todayKey ? ' is-future' : ''}" data-date="${key}" title="${escapeHtml(label)}" aria-hidden="true"></span>`);
+
+    const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+    if (date.getDate() === 1 && !seenMonths.has(monthKey)) {
+      seenMonths.add(monthKey);
+      const monthName = new Intl.DateTimeFormat('en-PH', { month: 'short' }).format(date);
+      monthLabels.push(`<span style="grid-column:${Math.floor(index / 7) + 1}">${monthName}</span>`);
+    }
+  }
+  byId('contributionMonths').innerHTML = monthLabels.join('');
+  byId('contributionGrid').innerHTML = visibleDates.join('');
+  byId('contributionSummary').textContent = underBudgetDays
+    ? `${underBudgetDays} under-budget ${underBudgetDays === 1 ? 'day' : 'days'} in the past year`
+    : budgetsByMonth.size ? 'No under-budget days yet' : 'Set monthly budgets to estimate savings';
+}
+
+// Prefill a daily check-in from its saved total or transaction sum.
+function setDailySpendAmountForDate() {
+  if (state.dailySpendAmountEdited) return;
+  const date = byId('dailySpendDate').value;
+  const manualEntry = (state.stats.dailySpending || []).find(entry => entry.date === date);
+  if (manualEntry) {
+    byId('dailySpendAmount').value = String(manualEntry.amount);
+    return;
+  }
+  const expenses = state.expenses.filter(expense => expense.date === date);
+  const total = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+  byId('dailySpendAmount').value = expenses.length ? String(total) : '';
+}
+
+// Open the daily spending check-in for today.
+function openDailySpendModal() {
+  byId('dailySpendForm').reset();
+  state.dailySpendAmountEdited = false;
+  byId('dailySpendDate').value = getToday();
+  byId('dailySpendAmountError').textContent = '';
+  setDailySpendAmountForDate();
+  openModal('dailySpendModal', '#dailySpendAmount');
+}
+
+// Save a confirmed daily spend total for the savings streak.
+async function saveDailySpend(event) {
+  event.preventDefault();
+  const amountText = byId('dailySpendAmount').value.trim();
+  const amount = Number(amountText);
+  const date = byId('dailySpendDate').value;
+  byId('dailySpendAmountError').textContent = '';
+  if (!amountText || !Number.isFinite(amount) || amount < 0) {
+    byId('dailySpendAmountError').textContent = 'Enter zero or a positive amount.';
+    return;
+  }
+  if (!date || date > getToday()) {
+    byId('dailySpendAmountError').textContent = 'Choose a date no later than today.';
+    return;
+  }
+  try {
+    await api('/api/stats/daily-spend', 'PUT', { date, amount });
+    closeModal('dailySpendModal');
+    showToast('Daily spending saved');
+    await loadData();
+  } catch (error) {
+    byId('dailySpendAmountError').textContent = error.message;
+  }
+}
+
+// Navigation, dialogs, and forms
 
 // Change tabs without reloading the page.
 function setActiveTab(tabName) {
@@ -502,6 +765,8 @@ function showToast(message, isError = false) {
   state.toastTimer = window.setTimeout(() => toast.classList.remove('is-visible'), 3200);
 }
 
+// Event wiring and startup
+
 // Connect navigation, forms, filters, and modal controls.
 function addEventListeners() {
   document.querySelectorAll('[data-tab]').forEach(button => {
@@ -514,8 +779,13 @@ function addEventListeners() {
   byId('nextMonth').addEventListener('click', () => changeMonth(1));
   byId('addExpenseButton').addEventListener('click', () => openExpenseModal());
   byId('addCategoryButton').addEventListener('click', () => openCategoryModal());
+  byId('openDailySpendButton').addEventListener('click', openDailySpendModal);
   byId('expenseForm').addEventListener('submit', saveExpense);
   byId('categoryForm').addEventListener('submit', saveCategory);
+  byId('monthlyBudgetForm').addEventListener('submit', saveMonthlyBudget);
+  byId('dailySpendForm').addEventListener('submit', saveDailySpend);
+  byId('dailySpendDate').addEventListener('change', setDailySpendAmountForDate);
+  byId('dailySpendAmount').addEventListener('input', () => { state.dailySpendAmountEdited = true; });
   byId('transactionSearch').addEventListener('input', renderTransactions);
   byId('categoryFilter').addEventListener('change', renderTransactions);
   byId('confirmDeleteButton').addEventListener('click', confirmDelete);
